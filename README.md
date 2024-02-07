@@ -1,5 +1,6 @@
 # LNM-SNClass
 Large Number Model Supernova Classificator based on SNCosmo models[1]
+
 Method development: opyshna
 Code development: vlad2305m
 
