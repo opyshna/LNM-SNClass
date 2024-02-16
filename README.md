@@ -1,6 +1,6 @@
 ![alt text](https://github.com/opyshna/LNM-SNClass/blob/main/Logo.png)
 # LNM-SNClass
-Large Number Model Supernova Classifier based on SNCosmo models[^1]
+Large Number of Models Supernova Classifier based on SNCosmo models[^1]
 
 - Method development: opyshna
 
