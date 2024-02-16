@@ -1,3 +1,7 @@
+%%file pool.py
+# then 
+# import sys
+# !{sys.executable} pool.py
 import pandas as pd
 import sncosmo
 
