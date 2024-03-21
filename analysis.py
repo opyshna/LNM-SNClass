@@ -12,6 +12,7 @@ while index < len(transients):
     guess_red_shift = 0
     red_shift = 0.065
     transient = transients[index]
+    print("\n\t\tPROGRESS:", index, "/", len(transients), "transients\n")
 
     if index+1 < len(transients) and type(transients[index+1]) is not str:
         red_shift = transients[index+1]
@@ -149,6 +150,6 @@ while index < len(transients):
 
     summary = pd.DataFrame(summary).sort_values(by=['score(logl)'], ascending=False)
     print(summary.to_string())
-    summary.to_csv("Iabc_test.csv", index=False)
-    summary.to_excel("output.xlsx")
+    summary.to_csv(transient+"_guessed_"+summary["type"][0]+".csv", index=False)
+    summary.to_excel(transient+"_guessed_"+summary["type"][0]+".xlsx")
 print("DONE")
