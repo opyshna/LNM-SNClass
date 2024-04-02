@@ -6,9 +6,9 @@ import math
 w = os.get_terminal_size()[0]
 
 cumulative_m = ['hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t']
-with open(sys.argv[1], "r") as f:
-    summary = f.read()
-summary = pd.read_csv(io.StringIO(summary.replace(" -", "  -")), sep='\s\s+', engine='python')
+
+summary = pd.read_csv(sys.argv[1])
+
 summary["l"] = np.exp(summary["logl"])
 summary["z"] = np.exp(summary["logz"])
 summary["aicscore"] = np.exp(-summary["AIC"])
