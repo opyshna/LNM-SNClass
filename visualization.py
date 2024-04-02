@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
-import os, io
+import os, io, sys
 import math
 
 w = os.get_terminal_size()[0]
 
 cumulative_m = ['hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t']
-with open("./Telegram Desktop/Ib.txt", "r") as f:
+with open(sys.argv[1], "r") as f:
     summary = f.read()
 summary = pd.read_csv(io.StringIO(summary.replace(" -", "  -")), sep='\s\s+', engine='python')
 summary["l"] = np.exp(summary["logl"])
