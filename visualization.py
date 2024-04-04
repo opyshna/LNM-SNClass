@@ -7,7 +7,13 @@ w = os.get_terminal_size()[0]
 
 cumulative_m = ['hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t']
 
-summary = pd.read_csv(sys.argv[1])
+f = sys.argv[1]
+if f[-3:]=="txt":
+    with open(f, "r") as f2:
+        summary = f2.read()
+    summary = pd.read_csv(io.StringIO(summary.replace(" -", "  -")), sep='\s\s+', engine='python')
+else:
+    summary = pd.read_csv(f)
 
 summary["l"] = np.exp(summary["logl"])
 summary["z"] = np.exp(summary["logz"])
