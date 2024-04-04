@@ -150,6 +150,6 @@ while index < len(transients):
 
     summary = pd.DataFrame(summary).sort_values(by=['score(logl)'], ascending=False)
     print(summary.to_string())
-    summary.to_csv(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"][0]+".csv", index=False)
-    summary.to_excel(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"][0]+".xlsx")
+    summary.to_csv(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"].iloc[0]+".csv", index=False)
+    summary.to_excel(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"].iloc[0]+".xlsx")
 print("DONE")
