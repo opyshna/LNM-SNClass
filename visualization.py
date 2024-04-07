@@ -63,7 +63,7 @@ print_bar_chart("Likelihood, Σ", summary_s, "l", printmodel=False)
 print_bar_chart("Evidence, Σ", summary_s, "z", printmodel=False)
 print_bar_chart("AIC, Σ", summary_s, "aicscore", printmodel=False)
 
-summary_s3 = {"SN Ia  ": ["SN Ia"], "SN Ib/c": ["SN Ib", "SN Ic", "SN Ib/c"], "SN II  ": ["SN IIL/P", "SN IIP", "SN IIL", "SN IIn", "SN II", "SN II-pec"]}
+summary_s3 = {"SN Ia  ": ["SN Ia"], "SN Ib/c": ["SN Ib", "SN Ic", "SN Ib/c", "SN Ic-BL"], "SN II  ": ["SN IIL/P", "SN IIP", "SN IIL", "SN IIn", "SN II", "SN II-pec"]}
 summary_s3 = {i[0]: [sum(summary_s[summary_s["type"].isin(i[1])]["l"]), sum(summary_s[summary_s["type"].isin(i[1])]["z"]), sum(summary_s[summary_s["type"].isin(i[1])]["aicscore"])] for i in summary_s3.items()}
 summary_s3 = pd.DataFrame([["Σ", i[0], i[1][0], i[1][1], i[1][2]] for i in summary_s3.items()], columns=["model", "type", "l", "z", "aicscore"])
 print_bar_chart("Likelihood, Σ3", summary_s3, "l", printmodel=False)
