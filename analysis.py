@@ -205,6 +205,10 @@ while index < len(transients):
         if do_cells[this_index] is not None: do_cells[this_index].value = ""
         if done_cells[this_index] is not None: done_cells[this_index].value = 1
         wb_obj.save(xlsxpath)
+    except KeyboardInterrupt:
+        kill[0]=1
+        time.sleep(0.1)
+        exit()
     except:
         kill[0]=1
         traceback.print_exc()
