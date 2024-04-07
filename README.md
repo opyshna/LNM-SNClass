@@ -6,6 +6,8 @@ Large Number of Models Supernova Classifier based on SNCosmo models[^1]
 
 - Code development: vlad2305m
 
+[^1]: DOI 10.5281/zenodo.592747
+
 ## Installation
 ```fish
 pip install sncosmo bilby selenium lxml nestle iminuit progress openpyxl
@@ -34,5 +36,3 @@ In a folder that contains results (searched recursively):
 ```sh
 python ./mass_visualization.py ./ztfs.xlsx
 ```
-
-[^1]: DOI 10.5281/zenodo.592747
