@@ -18,7 +18,7 @@ cd redback/
 pip install -r requirements.txt
 pip install .
 cd ../..
-rf -rf ./redback_build_from_source_because_lasair_update_not_in_pip
+rm -rf ./redback_build_from_source_because_lasair_update_not_in_pip
 ```
 ## Usage
 Need an excel with SN names (ZTF) in first column, starting at 2nd row
