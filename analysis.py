@@ -1,19 +1,66 @@
-%%file pool.py
+#%%file pool.py
 # then 
 # import sys
 # !{sys.executable} pool.py
 import pandas as pd
+import openpyxl
 import sncosmo
-import redback
+from redback.get_data import get_lasair_data
 import traceback
+from progress.bar import ChargingBar
+from threading import Thread
+import time
+import multiprocessing
+import math
+import sys
 # variables
+num_threads = 16 # take just enough for 100% CPU usage. More means faster if below 100% and always more RAM usage
 transients = []
+
+xlsxpath = sys.argv[1]
+wb_obj = openpyxl.load_workbook(xlsxpath)
+sheet_obj = wb_obj.active
+do_cells = [None]*len(transients)
+done_cells = [None]*len(transients)
+for i in range(2, sheet_obj.max_row+1):
+    name = sheet_obj.cell(row = i, column = 1).value
+    z = sheet_obj.cell(row = i, column = 4).value
+    do_with_z_cell = sheet_obj.cell(row = i, column = 8)
+    do_without_z_cell = sheet_obj.cell(row = i, column = 9)
+    if do_without_z_cell.value:
+        do_cells+=[do_without_z_cell]
+        done_cells+=[sheet_obj.cell(row = i, column = 11)]
+        transients+=[name]
+    if do_with_z_cell.value and z:
+        do_cells+=[do_with_z_cell, None]
+        done_cells+=[sheet_obj.cell(row = i, column = 10), None]
+        transients+=[name, z]
+
+models = ['salt2', 'hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t', 's11-2004hx', 's11-2005gi', 's11-2005hl', 's11-2005hm', 's11-2005lc', 's11-2006fo', 's11-2006jl', 's11-2006jo', 'snana-04d1la', 'snana-04d4jv', 'snana-2004fe', 'snana-2004gq', 'snana-2004gv', 'snana-2004hx', 'snana-2004ib', 'snana-2005gi', 'snana-2005hm', 'snana-2006ep', 'snana-2006ez', 'snana-2006fo', 'snana-2006gq', 'snana-2006iw', 'snana-2006ix', 'snana-2006jl', 'snana-2006jo', 'snana-2006kn', 'snana-2006kv', 'snana-2006lc', 'snana-2006ns', 'snana-2007iz', 'snana-2007kw', 'snana-2007ky', 'snana-2007lb', 'snana-2007ld', 'snana-2007lj', 'snana-2007ll', 'snana-2007lx', 'snana-2007lz', 'snana-2007md', 'snana-2007ms', 'snana-2007nc', 'snana-2007nr', 'snana-2007nv', 'snana-2007og', 'snana-2007pg', 'snana-2007y', 'snana-sdss004012', 'snana-sdss014475', 'snf-2011fe', 'v19-1987a', 'v19-1987a-corr', 'v19-1993j', 'v19-1993j-corr', 'v19-1994i', 'v19-1994i-corr', 'v19-1998bw', 'v19-1998bw-corr', 'v19-1999dn', 'v19-1999dn-corr', 'v19-1999em', 'v19-1999em-corr', 'v19-2002ap', 'v19-2002ap-corr', 'v19-2004aw', 'v19-2004aw-corr', 'v19-2004et', 'v19-2004et-corr', 'v19-2004fe', 'v19-2004fe-corr', 'v19-2004gq', 'v19-2004gq-corr', 'v19-2004gt', 'v19-2004gt-corr', 'v19-2004gv', 'v19-2004gv-corr', 'v19-2005bf', 'v19-2005bf-corr', 'v19-2005hg', 'v19-2005hg-corr', 'v19-2006aa', 'v19-2006aa-corr', 'v19-2006ep', 'v19-2007gr', 'v19-2007gr-corr', 'v19-2007od', 'v19-2007od-corr', 'v19-2007pk', 'v19-2007pk-corr', 'v19-2007ru', 'v19-2007ru-corr', 'v19-2007uy', 'v19-2007uy-corr', 'v19-2007y', 'v19-2007y-corr', 'v19-2008aq', 'v19-2008aq-corr', 'v19-2008ax', 'v19-2008ax-corr', 'v19-2008bj', 'v19-2008bj-corr', 'v19-2008bo', 'v19-2008bo-corr', 'v19-2008d', 'v19-2008d-corr', 'v19-2008fq', 'v19-2008fq-corr', 'v19-2008in', 'v19-2008in-corr', 'v19-2009bb', 'v19-2009bb-corr', 'v19-2009bw', 'v19-2009bw-corr', 'v19-2009dd', 'v19-2009dd-corr', 'v19-2009ib', 'v19-2009ib-corr', 'v19-2009ip', 'v19-2009ip-corr', 'v19-2009iz', 'v19-2009iz-corr', 'v19-2009jf', 'v19-2009jf-corr', 'v19-2009kr', 'v19-2009kr-corr', 'v19-2009n', 'v19-2009n-corr', 'v19-2010al', 'v19-2010al-corr', 'v19-2011bm', 'v19-2011bm-corr', 'v19-2011dh', 'v19-2011dh-corr', 'v19-2011ei', 'v19-2011ei-corr', 'v19-2011fu', 'v19-2011fu-corr', 'v19-2011hs', 'v19-2011hs-corr', 'v19-2011ht', 'v19-2011ht-corr', 'v19-2012a', 'v19-2012a-corr', 'v19-2012ap', 'v19-2012ap-corr', 'v19-2012au', 'v19-2012au-corr', 'v19-2012aw', 'v19-2012aw-corr', 'v19-2013ab', 'v19-2013ab-corr', 'v19-2013am', 'v19-2013am-corr', 'v19-2013by', 'v19-2013by-corr', 'v19-2013df', 'v19-2013df-corr', 'v19-2013ej', 'v19-2013ej-corr', 'v19-2013fs', 'v19-2013fs-corr', 'v19-2013ge', 'v19-2013ge-corr', 'v19-2014g', 'v19-2014g-corr', 'v19-2016bkv', 'v19-2016bkv-corr', 'v19-2016gkg', 'v19-2016gkg-corr', 'v19-2016x', 'v19-2016x-corr', 'v19-asassn14jb', 'v19-asassn14jb-corr', 'v19-asassn15oz', 'v19-asassn15oz-corr', 'v19-iptf13bvn', 'v19-iptf13bvn-corr', 'whalen-z15b', 'whalen-z15d', 'whalen-z15g', 'whalen-z25b', 'whalen-z25d', 'whalen-z25g', 'whalen-z40b', 'whalen-z40g'\
+                                            ]
+t_tot = len(list(filter(lambda x: type(x) is str, transients)))
+t_curr = 0
 index = 0
 while index < len(transients):
+    this_index = index
     guess_red_shift = 0
     red_shift = 0.065
     transient = transients[index]
-    print("\n\t\tPROGRESS:", index, "/", len(transients), "transients\n")
+    bar_suffix = f'%(index)d/%(max)d [ {(t_curr:=t_curr+1)-1} / {t_tot} ]'
+    def consumer(in_q, kill):
+        bar = ChargingBar(transient, max = len(models), suffix = bar_suffix)
+        while not kill[0]:
+            if not in_q.empty():
+                bar.next()
+                in_q.get()
+            else:
+                time.sleep(0.05)
+        while not in_q.empty():
+                bar.next()
+                in_q.get()
+        bar.finish()
+    #print("\n\t\tPROGRESS:", (t_curr:=t_curr+1)-1, "/", t_tot, "transients\n")
+
 
     if index+1 < len(transients) and type(transients[index+1]) is not str:
         red_shift = transients[index+1]
@@ -22,8 +69,9 @@ while index < len(transients):
         guess_red_shift = 1
         index+=1
     
+    kill = [0]
     try:
-        data = redback.get_data.get_lasair_data(transient=transient, transient_type='supernova')
+        data = get_lasair_data(transient=transient, transient_type='supernova')
     
         sncosmo_data = pd.DataFrame()
         sncosmo_data["time"] = data["time"]
@@ -36,7 +84,7 @@ while index < len(transients):
     
         data = dict(map(lambda col_kv: (col_kv[0], list(map(lambda row_kv: row_kv[1], col_kv[1].items()))), data.items()))
     
-        print(data)
+        #print(data)
     
         summary = ["model", "type", "amplitude", "t0", "logz", "logl", "AIC", "score(logz)", "score(logl)"]
         summary = dict([(i, []) for i in summary])
@@ -45,7 +93,7 @@ while index < len(transients):
     
         x0x1c = ['salt2'] # for lookup purposes
     
-        def analyze_model(msource):
+        def analyze_model(msource, shared_q):
             summary1 = {}
             summary1["model"] = msource
     
@@ -75,7 +123,7 @@ while index < len(transients):
                 data, model,
                 fparams, bounds=bounds, guess_amplitude_bound=not salt)
     
-            print("===========RUN 1:=============", msource)
+            #print("===========RUN 1:=============", msource)
             #print("Number of degrees of freedom in fit:", result.ndof)
             #print("The result contains the following attributes:\n", result.keys())
             #print("logZ", result.logz)
@@ -104,7 +152,7 @@ while index < len(transients):
                 fparams,
                 bounds=bounds2)
     
-            print("===========RUN 2:=============", msource)
+            #print("===========RUN 2:=============", msource)
             #print("Number of degrees of freedom in fit:", result.ndof)
             #print("The result contains the following attributes:\n", result.keys())
             #print("logZ", result.logz)
@@ -117,14 +165,16 @@ while index < len(transients):
             summary1["AIC"] = 2*result.ndof-2*result.logl[0]
     
             #sncosmo.plot_lc(data, model=fitted_model, errors=result.errors)
+            shared_q.put(123)
             return summary1
-    
-    
-        import multiprocessing
-        pool = multiprocessing.Pool(4)
-        summary0 = pool.map(analyze_model,  ['salt2', 'hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t', 's11-2004hx', 's11-2005gi', 's11-2005hl', 's11-2005hm', 's11-2005lc', 's11-2006fo', 's11-2006jl', 's11-2006jo', 'snana-04d1la', 'snana-04d4jv', 'snana-2004fe', 'snana-2004gq', 'snana-2004gv', 'snana-2004hx', 'snana-2004ib', 'snana-2005gi', 'snana-2005hm', 'snana-2006ep', 'snana-2006ez', 'snana-2006fo', 'snana-2006gq', 'snana-2006iw', 'snana-2006ix', 'snana-2006jl', 'snana-2006jo', 'snana-2006kn', 'snana-2006kv', 'snana-2006lc', 'snana-2006ns', 'snana-2007iz', 'snana-2007kw', 'snana-2007ky', 'snana-2007lb', 'snana-2007ld', 'snana-2007lj', 'snana-2007ll', 'snana-2007lx', 'snana-2007lz', 'snana-2007md', 'snana-2007ms', 'snana-2007nc', 'snana-2007nr', 'snana-2007nv', 'snana-2007og', 'snana-2007pg', 'snana-2007y', 'snana-sdss004012', 'snana-sdss014475', 'snf-2011fe', 'v19-1987a', 'v19-1987a-corr', 'v19-1993j', 'v19-1993j-corr', 'v19-1994i', 'v19-1994i-corr', 'v19-1998bw', 'v19-1998bw-corr', 'v19-1999dn', 'v19-1999dn-corr', 'v19-1999em', 'v19-1999em-corr', 'v19-2002ap', 'v19-2002ap-corr', 'v19-2004aw', 'v19-2004aw-corr', 'v19-2004et', 'v19-2004et-corr', 'v19-2004fe', 'v19-2004fe-corr', 'v19-2004gq', 'v19-2004gq-corr', 'v19-2004gt', 'v19-2004gt-corr', 'v19-2004gv', 'v19-2004gv-corr', 'v19-2005bf', 'v19-2005bf-corr', 'v19-2005hg', 'v19-2005hg-corr', 'v19-2006aa', 'v19-2006aa-corr', 'v19-2006ep', 'v19-2007gr', 'v19-2007gr-corr', 'v19-2007od', 'v19-2007od-corr', 'v19-2007pk', 'v19-2007pk-corr', 'v19-2007ru', 'v19-2007ru-corr', 'v19-2007uy', 'v19-2007uy-corr', 'v19-2007y', 'v19-2007y-corr', 'v19-2008aq', 'v19-2008aq-corr', 'v19-2008ax', 'v19-2008ax-corr', 'v19-2008bj', 'v19-2008bj-corr', 'v19-2008bo', 'v19-2008bo-corr', 'v19-2008d', 'v19-2008d-corr', 'v19-2008fq', 'v19-2008fq-corr', 'v19-2008in', 'v19-2008in-corr', 'v19-2009bb', 'v19-2009bb-corr', 'v19-2009bw', 'v19-2009bw-corr', 'v19-2009dd', 'v19-2009dd-corr', 'v19-2009ib', 'v19-2009ib-corr', 'v19-2009ip', 'v19-2009ip-corr', 'v19-2009iz', 'v19-2009iz-corr', 'v19-2009jf', 'v19-2009jf-corr', 'v19-2009kr', 'v19-2009kr-corr', 'v19-2009n', 'v19-2009n-corr', 'v19-2010al', 'v19-2010al-corr', 'v19-2011bm', 'v19-2011bm-corr', 'v19-2011dh', 'v19-2011dh-corr', 'v19-2011ei', 'v19-2011ei-corr', 'v19-2011fu', 'v19-2011fu-corr', 'v19-2011hs', 'v19-2011hs-corr', 'v19-2011ht', 'v19-2011ht-corr', 'v19-2012a', 'v19-2012a-corr', 'v19-2012ap', 'v19-2012ap-corr', 'v19-2012au', 'v19-2012au-corr', 'v19-2012aw', 'v19-2012aw-corr', 'v19-2013ab', 'v19-2013ab-corr', 'v19-2013am', 'v19-2013am-corr', 'v19-2013by', 'v19-2013by-corr', 'v19-2013df', 'v19-2013df-corr', 'v19-2013ej', 'v19-2013ej-corr', 'v19-2013fs', 'v19-2013fs-corr', 'v19-2013ge', 'v19-2013ge-corr', 'v19-2014g', 'v19-2014g-corr', 'v19-2016bkv', 'v19-2016bkv-corr', 'v19-2016gkg', 'v19-2016gkg-corr', 'v19-2016x', 'v19-2016x-corr', 'v19-asassn14jb', 'v19-asassn14jb-corr', 'v19-asassn15oz', 'v19-asassn15oz-corr', 'v19-iptf13bvn', 'v19-iptf13bvn-corr', 'whalen-z15b', 'whalen-z15d', 'whalen-z15g', 'whalen-z25b', 'whalen-z25d', 'whalen-z25g', 'whalen-z40b', 'whalen-z40g'\
-                                            ] )
-    
+
+        m = multiprocessing.Manager()
+        shared_q = m.Queue()
+        t1 = Thread(target = consumer, args =(shared_q, kill))
+        t1.start()
+        pool = multiprocessing.Pool(num_threads)
+        summary0 = list(map(lambda x: x.get(timeout=None), [pool.apply_async(analyze_model,  args) for args in zip(models, [shared_q]*len(models))]))
+        kill[0]=1
         # collect results and fill in the blanks
         summary = {}
         for i, d in enumerate(summary0):
@@ -141,19 +191,23 @@ while index < len(transients):
                     summary[k]+=[type(summary[k][0])()] * (i-len(summary[k]))
                 if len(summary[k])>(i+1):
                     raise Exception(f'Somehow got more rows than had data ({len(summary[k])} > {i})')
-            
-    
-        import math
+
+
         ltot = sum([math.exp(i) for i in summary["logl"]])
         summary["score(logl)"] = [math.exp(i)/ltot for i in summary["logl"]]
         ztot = sum([math.exp(i) for i in summary["logz"]])
         summary["score(logz)"] = [math.exp(i)/ztot for i in summary["logz"]]
     
         summary = pd.DataFrame(summary).sort_values(by=['score(logl)'], ascending=False)
-        print(summary.to_string())
+        #print(summary.to_string())
         summary.to_csv(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"].iloc[0]+".csv", index=False)
         summary.to_excel(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"].iloc[0]+".xlsx")
+        if do_cells[this_index] is not None: do_cells[this_index].value = ""
+        if done_cells[this_index] is not None: done_cells[this_index].value = 1
+        wb_obj.save(xlsxpath)
     except:
+        kill[0]=1
         traceback.print_exc()
         print(f"!!!!!!!!!!!! {transient} caused an exception!!!!!!!!!!!!!")
+wb_obj.save(xlsxpath)
 print("DONE")
