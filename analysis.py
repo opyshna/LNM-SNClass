@@ -16,7 +16,7 @@ import multiprocessing
 import math
 import functools
 import numpy as np
-import sys
+import sys, os, signal
 # variables
 num_threads = 11 # take just enough for 100% CPU usage. More means faster if below 100% and always more RAM usage
 transients = []
@@ -51,18 +51,24 @@ while index < len(transients):
     red_shift = 0.065
     transient = transients[index]
     bar_suffix = f'%(index)d/%(max)d [ {(t_curr:=t_curr+1)} / {t_tot} ]'
-    def consumer(in_q, kill):
+    def consumer(in_q, kill, pool):
         bar = ChargingBar(transient, max = len(models), suffix = bar_suffix)
         bar.start()
+        def progress():
+            c = in_q.get()
+            if c == 123: bar.next()
+            if c == -1: # There was an error => stop
+                pool.terminate()
+                kill[0]=100
+                os.kill(os.getpid(), signal.SIGINT)
+
         while not kill[0]:
             if not in_q.empty():
-                bar.next()
-                in_q.get()
+                progress()
             else:
                 time.sleep(0.05)
         while not in_q.empty():
-                bar.next()
-                in_q.get()
+                progress()
         bar.finish()
 
 
@@ -149,14 +155,15 @@ while index < len(transients):
             exit()
          except:
              traceback.print_exc()
-             print("MODEL", msource, "caused an exception !!!!!!!!!!!!!!!")
-             raise RuntimeError()
+             print("MODEL", msource, "for", transient, "caused an exception !!!!!!!!!!!!!!!")
+             shared_q.put(-1)
+             return None
 
         m = multiprocessing.Manager()
         shared_q = m.Queue()
-        t1 = Thread(target = consumer, args =(shared_q, kill))
-        t1.start()
         pool = multiprocessing.Pool(num_threads)
+        t1 = Thread(target = consumer, args =(shared_q, kill, pool))
+        t1.start()
         summary0 = list(map(lambda x: x.get(timeout=None), [pool.apply_async(analyze_model,  args) for args in zip(models, [shared_q]*len(models))]))
         kill[0]=1
         # collect results and fill in the blanks
@@ -181,7 +188,7 @@ while index < len(transients):
         summary["score(logl)"] = [math.exp(i-ltot) for i in summary["logl"]]
         ztot = functools.reduce(lambda a, b: np.logaddexp(a,b), summary["logz"])
         summary["score(logz)"] = [math.exp(i-ztot) for i in summary["logz"]]
-    
+
         summary = pd.DataFrame(summary).sort_values(by=['score(logl)'], ascending=False)
         #print(summary.to_string())
         summary.to_csv(transient+("_z" if not guess_red_shift else "")+"_guessed_"+summary["type"].iloc[0]+".csv", index=False)
@@ -190,6 +197,8 @@ while index < len(transients):
         if done_cells[this_index] is not None: done_cells[this_index].value = 1
         wb_obj.save(xlsxpath)
     except KeyboardInterrupt:
+        if kill[0]==100:
+            continue
         kill[0]=1
         time.sleep(0.1)
         exit()
