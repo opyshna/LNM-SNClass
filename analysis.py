@@ -6,15 +6,19 @@ import pandas as pd
 import openpyxl
 import sncosmo
 from redback.get_data import get_lasair_data
+import logging
+logging.getLogger('redback').setLevel(40) # just shut up
 import traceback
 from progress.bar import ChargingBar
 from threading import Thread
 import time
 import multiprocessing
 import math
+import functools
+import numpy as np
 import sys
 # variables
-num_threads = 16 # take just enough for 100% CPU usage. More means faster if below 100% and always more RAM usage
+num_threads = 11 # take just enough for 100% CPU usage. More means faster if below 100% and always more RAM usage
 transients = []
 
 xlsxpath = sys.argv[1]
@@ -46,9 +50,10 @@ while index < len(transients):
     guess_red_shift = 0
     red_shift = 0.065
     transient = transients[index]
-    bar_suffix = f'%(index)d/%(max)d [ {(t_curr:=t_curr+1)-1} / {t_tot} ]'
+    bar_suffix = f'%(index)d/%(max)d [ {(t_curr:=t_curr+1)} / {t_tot} ]'
     def consumer(in_q, kill):
         bar = ChargingBar(transient, max = len(models), suffix = bar_suffix)
+        bar.start()
         while not kill[0]:
             if not in_q.empty():
                 bar.next()
@@ -59,7 +64,6 @@ while index < len(transients):
                 bar.next()
                 in_q.get()
         bar.finish()
-    #print("\n\t\tPROGRESS:", (t_curr:=t_curr+1)-1, "/", t_tot, "transients\n")
 
 
     if index+1 < len(transients) and type(transients[index+1]) is not str:
@@ -68,7 +72,6 @@ while index < len(transients):
     else:
         guess_red_shift = 1
         index+=1
-    
     kill = [0]
     try:
         data = get_lasair_data(transient=transient, transient_type='supernova')
@@ -80,24 +83,20 @@ while index < len(transients):
         sncosmo_data["flux_err"] = data["flux_density_error"]
         sncosmo_data["zp"] = [25] * len(data)
         sncosmo_data["zpsys"] = data["system"].str.lower()
-        data = sncosmo_data
-    
-        data = dict(map(lambda col_kv: (col_kv[0], list(map(lambda row_kv: row_kv[1], col_kv[1].items()))), data.items()))
-    
-        #print(data)
+        data = dict(map(lambda col_kv: (col_kv[0], list(map(lambda row_kv: row_kv[1], col_kv[1].items()))), sncosmo_data.items()))
     
         summary = ["model", "type", "amplitude", "t0", "logz", "logl", "AIC", "score(logz)", "score(logl)"]
         summary = dict([(i, []) for i in summary])
     
-        cumulative_m = ['hsiao', 'hsiao-subsampled', 'nugent-hyper', 'nugent-sn1a', 'nugent-sn1bc', 'nugent-sn2l', 'nugent-sn2n', 'nugent-sn2p', 'nugent-sn91bg', 'nugent-sn91t'] # for lookup purposes
-    
         x0x1c = ['salt2'] # for lookup purposes
     
         def analyze_model(msource, shared_q):
+         try:
             summary1 = {}
             summary1["model"] = msource
     
             model = sncosmo.Model(source=msource)
+            model.set(z=red_shift)
             type = "N/A"
             for m in sncosmo.models._SOURCES.get_loaders_metadata():
                 if msource == m["name"]:
@@ -106,10 +105,8 @@ while index < len(transients):
     
             salt = msource in x0x1c
     
-            model.set(z=red_shift)
-    
             # run the fit
-            bounds={'z':(0.0001, 0.2)}
+            bounds={'z':(0.0001, 0.2)} if guess_red_shift else {}
             fparams = ['z'] if guess_red_shift else []
             fparams+= ['t0', 'amplitude'] if not salt else ['t0', 'x0', 'x1', 'c']
             if salt:
@@ -123,14 +120,6 @@ while index < len(transients):
                 data, model,
                 fparams, bounds=bounds, guess_amplitude_bound=not salt)
     
-            #print("===========RUN 1:=============", msource)
-            #print("Number of degrees of freedom in fit:", result.ndof)
-            #print("The result contains the following attributes:\n", result.keys())
-            #print("logZ", result.logz)
-            #print("h", result.h)
-            #print("logl", result.logl)
-            #print("parameters", result.parameters)
-    
     
             summary1["logz"] = result.logz
             if not salt:
@@ -139,7 +128,6 @@ while index < len(transients):
                 summary1["amplitude"] = "x0=" + str(result.param_dict["x0"]) + " ± " + str(result.errors["x0"]) + "; x1=" + str(result.param_dict["x1"]) + " ± " + str(result.errors["x1"]) + "; c=" + str(result.param_dict["c"]) + " ± " + str(result.errors["c"])
             summary1["t0"] = str(result.param_dict["t0"]) + " ± " + str(result.errors["t0"])
     
-            #sncosmo.plot_lc(data, model=fitted_model, errors=result.errors)
     
             # create a model ================== 2
             bounds2={}
@@ -152,21 +140,17 @@ while index < len(transients):
                 fparams,
                 bounds=bounds2)
     
-            #print("===========RUN 2:=============", msource)
-            #print("Number of degrees of freedom in fit:", result.ndof)
-            #print("The result contains the following attributes:\n", result.keys())
-            #print("logZ", result.logz)
-            #print("h", result.h)
-            #print("logl", result.logl[0])
-            #print("parameters", result.parameters)
-    
-    
             summary1["logl"] = result.logl[0]
             summary1["AIC"] = 2*result.ndof-2*result.logl[0]
     
-            #sncosmo.plot_lc(data, model=fitted_model, errors=result.errors)
             shared_q.put(123)
             return summary1
+         except KeyboardInterrupt:
+            exit()
+         except:
+             traceback.print_exc()
+             print("MODEL", msource, "caused an exception !!!!!!!!!!!!!!!")
+             raise RuntimeError()
 
         m = multiprocessing.Manager()
         shared_q = m.Queue()
@@ -193,10 +177,10 @@ while index < len(transients):
                     raise Exception(f'Somehow got more rows than had data ({len(summary[k])} > {i})')
 
 
-        ltot = sum([math.exp(i) for i in summary["logl"]])
-        summary["score(logl)"] = [math.exp(i)/ltot for i in summary["logl"]]
-        ztot = sum([math.exp(i) for i in summary["logz"]])
-        summary["score(logz)"] = [math.exp(i)/ztot for i in summary["logz"]]
+        ltot = functools.reduce(lambda a, b: np.logaddexp(a,b), summary["logl"])
+        summary["score(logl)"] = [math.exp(i-ltot) for i in summary["logl"]]
+        ztot = functools.reduce(lambda a, b: np.logaddexp(a,b), summary["logz"])
+        summary["score(logz)"] = [math.exp(i-ztot) for i in summary["logz"]]
     
         summary = pd.DataFrame(summary).sort_values(by=['score(logl)'], ascending=False)
         #print(summary.to_string())
