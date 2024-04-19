@@ -10,15 +10,7 @@ Large Number of Models Supernova Classifier based on SNCosmo models[^1]
 
 ## Installation
 ```fish
-pip install sncosmo bilby selenium lxml nestle iminuit progress openpyxl
-mkdir redback_build_from_source_because_lasair_update_not_in_pip
-cd redback_build_from_source_because_lasair_update_not_in_pip
-git clone https://github.com/nikhil-sarin/redback
-cd redback/
-pip install -r requirements.txt
-pip install .
-cd ../..
-rm -rf ./redback_build_from_source_because_lasair_update_not_in_pip
+pip install redback sncosmo bilby selenium lxml nestle iminuit progress openpyxl
 ```
 ## Usage
 Need an excel with SN names (ZTF) in first column, starting at 2nd row
